@@ -15,10 +15,12 @@ typedef struct
   char *en; /* English translation, or NULL    */
 } DictExample;
 
-/* One sense / translation line from the Wiktionary-derived entry. */
+/* One sense from the entry: the English translation line plus the Russian
+ * explanation that FreeDict pairs with it (gloss may be NULL). */
 typedef struct
 {
-  char *gloss; /* English translation or definition text (UTF-8) */
+  char *translation; /* e.g. "house, home"                       */
+  char *gloss;       /* Russian explanation for this sense (or NULL) */
 } DictSense;
 
 /* The full aggregated result for one lemma. */

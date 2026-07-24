@@ -216,13 +216,125 @@ static const IndexEntry *find(const Dictionary *d, const char *norm)
 /*  / IPA, then split accordingly. Until then, dump the body as a      */
 /*  single sense so the pipeline works end to end.                     */
 /* ================================================================== */
+/* Duplicate the byte range [a, b) as a NUL-terminated string. */
+static char *dup_range(const char *a, const char *b)
+{
+  size_t n = (size_t)(b - a);
+  char *s = malloc(n + 1);
+  if (!s)
+    return NULL;
+  memcpy(s, a, n);
+  s[n] = '\0';
+  return s;
+}
+
+/* ================================================================== */
+/*  Parse a FreeDict rus-eng article into DictEntry fields.            */
+/*  Format (single '\n' separators, no blank lines):                   */
+/*     <headword> /<pronunciation>/ <pos>                              */
+/*     1. <english translations>                                       */
+/*     <russian explanation>                                           */
+/*     2. <english translations>                                       */
+/*     <russian explanation>                                           */
+/*     ...                                                             */
+/*  A line starting with digits followed by '.' begins a new sense;    */
+/*  the line(s) after it, up to the next numbered line, are its gloss. */
+/* ================================================================== */
 static void parse_article(const char *body, DictEntry *out)
 {
-  out->senses = malloc(sizeof *out->senses);
-  out->senses[0].gloss = strdup(body);
-  out->n_senses = 1;
-  /* TODO: populate out->part_of_speech / out->grammar / out->ipa
-   * and split multiple senses once you've seen the real format. */
+  const char *nl = strchr(body, '\n');
+  const char *header_end = nl ? nl : body + strlen(body);
+
+  /* pronunciation: between the first '/' and the next '/' on line 1 */
+  const char *s1 = memchr(body, '/', (size_t)(header_end - body));
+  if (s1)
+  {
+    const char *s2 = memchr(s1 + 1, '/', (size_t)(header_end - (s1 + 1)));
+    if (s2)
+      out->ipa = dup_range(s1 + 1, s2);
+  }
+  /* part of speech: between '<' and '>' on line 1 */
+  const char *lt = memchr(body, '<', (size_t)(header_end - body));
+  if (lt)
+  {
+    const char *gt = memchr(lt + 1, '>', (size_t)(header_end - (lt + 1)));
+    if (gt)
+      out->part_of_speech = dup_range(lt + 1, gt);
+  }
+
+  size_t cap = 4, n = 0;
+  out->senses = malloc(cap * sizeof *out->senses);
+  if (!out->senses)
+  {
+    out->n_senses = 0;
+    return;
+  }
+
+  const char *p = nl ? nl + 1 : header_end;
+  while (*p)
+  {
+    const char *end = strchr(p, '\n');
+    if (!end)
+      end = p + strlen(p);
+
+    /* numbered line? (one or more digits then '.') */
+    const char *q = p;
+    while (q < end && *q >= '0' && *q <= '9')
+      q++;
+    int numbered = (q > p && q < end && *q == '.');
+
+    if (numbered)
+    {
+      const char *t = q + 1;
+      while (t < end && *t == ' ')
+        t++;
+      if (n == cap)
+      {
+        cap *= 2;
+        out->senses = realloc(out->senses, cap * sizeof *out->senses);
+      }
+      out->senses[n].translation = dup_range(t, end);
+      out->senses[n].gloss = NULL;
+      n++;
+    }
+    else if (n > 0)
+    {
+      /* explanation line for the sense in progress (append if repeated) */
+      char *g = dup_range(p, end);
+      char **slot = &out->senses[n - 1].gloss;
+      if (*slot == NULL)
+      {
+        *slot = g;
+      }
+      else
+      {
+        size_t a = strlen(*slot), b = strlen(g);
+        char *m = malloc(a + 1 + b + 1);
+        memcpy(m, *slot, a);
+        m[a] = ' ';
+        memcpy(m + a + 1, g, b);
+        m[a + 1 + b] = '\0';
+        free(*slot);
+        free(g);
+        *slot = m;
+      }
+    }
+    p = (*end) ? end + 1 : end;
+  }
+
+  /* Fallback: entry with no numbered senses — treat everything after the
+   * header as a single translation. */
+  if (n == 0 && nl && *(nl + 1))
+  {
+    const char *rest = nl + 1;
+    const char *rend = rest + strlen(rest);
+    while (rend > rest && (rend[-1] == '\n' || rend[-1] == ' '))
+      rend--;
+    out->senses[0].translation = dup_range(rest, rend);
+    out->senses[0].gloss = NULL;
+    n = 1;
+  }
+  out->n_senses = n;
 }
 
 /* ---- examples body is our own preprocessed format: "ru<TAB>en\n" lines ----
@@ -422,7 +534,10 @@ void dict_entry_free(DictEntry *e)
   free(e->grammar);
   free(e->ipa);
   for (size_t i = 0; i < e->n_senses; i++)
+  {
+    free(e->senses[i].translation);
     free(e->senses[i].gloss);
+  }
   free(e->senses);
   for (size_t i = 0; i < e->n_examples; i++)
   {

@@ -118,8 +118,15 @@ static void render_lookup(const char *word)
     wprintw(pad, "\n");
 
     for (size_t i = 0; i < e.n_senses; i++)
+    {
+      wattron(pad, A_BOLD);
       wprintw(pad, "%zu. %s\n", i + 1,
-              e.senses[i].gloss ? e.senses[i].gloss : "");
+              e.senses[i].translation ? e.senses[i].translation : "");
+      wattroff(pad, A_BOLD);
+      if (e.senses[i].gloss)
+        wprintw(pad, "   %s\n", e.senses[i].gloss);
+      wprintw(pad, "\n");
+    }
 
     if (e.n_examples)
     {
