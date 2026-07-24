@@ -57,8 +57,13 @@ static char *norm_key(const char *s)
     else if (c == 0xD0 && i + 1 < len)
     { /* U+0400..U+043F range */
       unsigned char d = (unsigned char)s[i + 1];
-      if (d >= 0x90 && d <= 0x9F)
-      { /* А..П -> а..п */
+      if (d == 0x81)
+      { /* Ё -> е (U+0435) */
+        out[j++] = (char)0xD0;
+        out[j++] = (char)0xB5;
+      }
+      else if (d >= 0x90 && d <= 0x9F)
+      { /* А..П -> а..п (Е->е here) */
         out[j++] = (char)0xD0;
         out[j++] = (char)(d + 0x20);
       }
@@ -66,6 +71,21 @@ static char *norm_key(const char *s)
       { /* Р..Я -> р..я (spills to D1) */
         out[j++] = (char)0xD1;
         out[j++] = (char)(d - 0x20);
+      }
+      else
+      {
+        out[j++] = (char)c;
+        out[j++] = (char)d;
+      }
+      i += 2;
+    }
+    else if (c == 0xD1 && i + 1 < len)
+    { /* U+0440..U+047F range */
+      unsigned char d = (unsigned char)s[i + 1];
+      if (d == 0x91)
+      { /* ё -> е (U+0435) */
+        out[j++] = (char)0xD0;
+        out[j++] = (char)0xB5;
       }
       else
       {
