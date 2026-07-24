@@ -290,6 +290,69 @@ DictDB *dict_open(const char *rd_index_path, const char *rd_data_path,
 
 void dict_set_lemmatizer(DictDB *db, DictLemmatizer fn) { db->lemma = fn; }
 
+#define DICT_MAX_MATCHES 1000
+
+int dict_matches(DictDB *db, const char *prefix_utf8, char ***out,
+                 size_t *n_out)
+{
+  *out = NULL;
+  *n_out = 0;
+
+  char *pfx = norm_key(prefix_utf8);
+  if (!pfx)
+    return -1;
+  size_t plen = strlen(pfx);
+  if (plen == 0)
+  {
+    free(pfx);
+    return 0;
+  } /* empty prefix -> no menu */
+
+  /* lower bound: first index whose key >= pfx */
+  size_t lo = 0, hi = db->rd.n;
+  while (lo < hi)
+  {
+    size_t mid = lo + (hi - lo) / 2;
+    if (strcmp(db->rd.entries[mid].key, pfx) < 0)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+
+  size_t cap = 32, n = 0;
+  char **list = malloc(cap * sizeof *list);
+  if (!list)
+  {
+    free(pfx);
+    return -1;
+  }
+
+  for (size_t i = lo; i < db->rd.n && n < DICT_MAX_MATCHES; i++)
+  {
+    if (strncmp(db->rd.entries[i].key, pfx, plen) != 0)
+      break;
+    if (n == cap)
+    {
+      cap *= 2;
+      list = realloc(list, cap * sizeof *list);
+    }
+    list[n++] = strdup(db->rd.entries[i].key);
+  }
+  free(pfx);
+  *out = list;
+  *n_out = n;
+  return 0;
+}
+
+void dict_matches_free(char **list, size_t n)
+{
+  if (!list)
+    return;
+  for (size_t i = 0; i < n; i++)
+    free(list[i]);
+  free(list);
+}
+
 int dict_lookup(DictDB *db, const char *query_utf8, DictEntry *out)
 {
   char *norm = norm_key(query_utf8);

@@ -64,4 +64,13 @@ void dict_entry_free(DictEntry *out);
 typedef char *(*DictLemmatizer)(const char *surface_utf8);
 void dict_set_lemmatizer(DictDB *db, DictLemmatizer fn);
 
+/* Enumerate headwords that begin with prefix_utf8 (case-folded), for the
+ * incremental-search menu. On success fills *out with a malloc'd array of
+ * malloc'd UTF-8 strings and *n_out with the count (capped internally).
+ * An empty prefix yields zero matches. Returns 0 on success, -1 on error.
+ * Free the result with dict_matches_free(). */
+int dict_matches(DictDB *db, const char *prefix_utf8, char ***out,
+                 size_t *n_out);
+void dict_matches_free(char **list, size_t n);
+
 #endif /* DICT_H */
