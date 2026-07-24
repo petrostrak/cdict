@@ -57,7 +57,7 @@ LDLIBS  := $(NC_LIBS) $(Z_LIBS)
 # --- sources (src/ tree) ---------------------------------------------------
 SRCS    := main.c src/tui/tui.c src/dict/dict.c
 OBJS    := $(SRCS:.c=.o)
-HEADERS := src/dict/dict.h src/tui/tui.h
+HEADERS := src/dict/dict.h src/tui/tui.h src/tui/table_data.h
 BIN     := rusdict
 
 .PHONY: all clean smoke deps-macos

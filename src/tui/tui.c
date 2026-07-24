@@ -14,6 +14,7 @@
 #include <wchar.h>
 
 #include "../dict/dict.h"
+#include "table_data.h"
 #include "tui.h"
 
 /* ---- layout ------------------------------------------------------------ */
@@ -21,8 +22,16 @@
 #define BODY_Y 3   /* first row of the body (below the search line)   */
 #define PAD_H 4000 /* max lines of definition text held in the pad     */
 
+/* ---- tabs ---------------------------------------------------------------- */
+enum
+{
+  TAB_DICT = 0,
+  TAB_TABLE = 1
+};
+
 /* ---- state ------------------------------------------------------------- */
 static DictDB *DB;
+static int active_tab = TAB_DICT;
 
 static FORM *form;
 static FIELD *fields[2];
@@ -39,6 +48,11 @@ static WINDOW *pad;
 static int pad_rows, pad_off;              /* content height, scroll offset */
 static int def_iy, def_ix, def_ih, def_iw; /* def pane inner viewport  */
 static int body_h;
+
+static WINDOW *table_win;
+static WINDOW *table_pad;
+static int table_pad_rows, table_pad_off;
+static int table_iy, table_ix, table_ih, table_iw; /* table pane inner viewport */
 
 /* ---- helpers ----------------------------------------------------------- */
 
@@ -80,6 +94,73 @@ static void draw_def(void)
   draw_def_frame();
   pnoutrefresh(pad, pad_off, 0, def_iy, def_ix, def_iy + def_ih - 1,
                def_ix + def_iw - 1);
+}
+
+/* Tab bar on row 0. Таблица = "Table". */
+static void draw_tabbar(void)
+{
+  wmove(stdscr, 0, 0);
+  wclrtoeol(stdscr);
+  mvwprintw(stdscr, 0, 0, "rusdict  ");
+  wattrset(stdscr, active_tab == TAB_DICT ? A_REVERSE : A_NORMAL);
+  waddstr(stdscr, " Dictionary ");
+  wattrset(stdscr, A_NORMAL);
+  waddstr(stdscr, "  ");
+  wattrset(stdscr, active_tab == TAB_TABLE ? A_REVERSE : A_NORMAL);
+  waddstr(stdscr, " Таблица ");
+  wattrset(stdscr, A_NORMAL);
+  wnoutrefresh(stdscr);
+}
+
+static void draw_table_frame(void)
+{
+  box(table_win, 0, 0);
+  mvwprintw(table_win, 0, 2, " таблица ");
+  wnoutrefresh(table_win);
+}
+
+/* Blit the visible slice of the table pad into the table pane. */
+static void draw_table(void)
+{
+  int maxoff = table_pad_rows - table_ih;
+  if (maxoff < 0)
+    maxoff = 0;
+  if (table_pad_off > maxoff)
+    table_pad_off = maxoff;
+  if (table_pad_off < 0)
+    table_pad_off = 0;
+  draw_table_frame();
+  pnoutrefresh(table_pad, table_pad_off, 0, table_iy, table_ix,
+               table_iy + table_ih - 1, table_ix + table_iw - 1);
+}
+
+/* Switch the visible tab. Dictionary and table panes share the same body
+ * rows, so whichever one isn't showing needs an explicit touchwin() to force
+ * its stale content back over what the other tab last drew there. */
+static void switch_tab(int tab)
+{
+  active_tab = tab;
+  draw_tabbar();
+
+  if (active_tab == TAB_TABLE)
+  {
+    curs_set(0);
+    touchwin(table_win);
+    draw_table();
+  }
+  else
+  {
+    curs_set(1);
+    /* table_win spans the full body width, so switching away from it leaves
+     * its content sitting in the 1-col gap between mwin and def_win - that
+     * gap belongs to neither window, so nothing else repaints it. */
+    mvwvline(stdscr, BODY_Y, MENU_W, ' ', body_h);
+    wnoutrefresh(stdscr);
+    touchwin(mwin);
+    wnoutrefresh(mwin);
+    touchwin(def_win);
+    draw_def();
+  }
 }
 
 static void show_message(const char *msg)
@@ -260,12 +341,12 @@ static void ui_init(void)
   curs_set(1);
 
   /* chrome on stdscr */
-  mvaddstr(0, 0, "rusdict \u2014 Russian dictionary");
+  draw_tabbar();
   mvaddstr(1, 0, "Search: ");
   mvhline(2, 0, ACS_HLINE, COLS);
   mvaddstr(LINES - 1, 0,
-           "\u2191/\u2193 match   Enter look up   PgUp/PgDn scroll   "
-           "Esc/Ctrl-Q quit");
+           "Tab switch tab   \u2191/\u2193 match/scroll   Enter look up   "
+           "PgUp/PgDn scroll   Esc/Ctrl-Q quit");
   wnoutrefresh(stdscr);
 
   /* search field / form (row 1, starting after the "Search: " label) */
@@ -299,6 +380,18 @@ static void ui_init(void)
   def_iw = def_w - 2;
 
   pad = newpad(PAD_H, def_iw);
+
+  /* second tab: static reference table, occupies the full body width */
+  table_win = newwin(body_h, COLS, BODY_Y, 0);
+  table_iy = BODY_Y + 1;
+  table_ix = 1;
+  table_ih = body_h - 2;
+  table_iw = COLS - 2;
+
+  table_pad = newpad(PAD_H, TABLE_TEXT_WIDTH);
+  wprintw(table_pad, "%s", TABLE_TEXT);
+  table_pad_rows = getcury(table_pad) + 1;
+  table_pad_off = 0;
 }
 
 static void ui_teardown(void)
@@ -322,6 +415,10 @@ static void ui_teardown(void)
     delwin(mwin);
   if (fwin)
     delwin(fwin);
+  if (table_pad)
+    delwin(table_pad);
+  if (table_win)
+    delwin(table_win);
   endwin();
 }
 
@@ -342,7 +439,31 @@ static void loop(void)
     if (r == ERR)
       continue;
 
-    if (r == KEY_CODE_YES)
+    if (r == KEY_CODE_YES && active_tab == TAB_TABLE)
+    { /* table tab only scrolls; the search field/menu keys don't apply */
+      switch (wch)
+      {
+      case KEY_DOWN:
+        table_pad_off++;
+        draw_table();
+        break;
+      case KEY_UP:
+        table_pad_off--;
+        draw_table();
+        break;
+      case KEY_NPAGE:
+        table_pad_off += table_ih - 1;
+        draw_table();
+        break;
+      case KEY_PPAGE:
+        table_pad_off -= table_ih - 1;
+        draw_table();
+        break;
+      default:
+        break;
+      }
+    }
+    else if (r == KEY_CODE_YES)
     { /* function / arrow keys */
       switch (wch)
       {
@@ -396,18 +517,26 @@ static void loop(void)
         break;
       }
     }
+    else if (wch == L'\t')
+    { /* r == OK */
+      switch_tab(active_tab == TAB_DICT ? TAB_TABLE : TAB_DICT);
+    }
+    else if (wch == 27 /*Esc*/ || wch == 17 /*Ctrl-Q*/)
+    {
+      running = 0;
+    }
+    else if (active_tab == TAB_TABLE)
+    {
+      /* table tab ignores other char input; nothing to type here */
+    }
     else
-    { /* r == OK: wch is a real char */
+    { /* r == OK, dictionary tab: wch is a real char */
       if (wch == L'\n' || wch == L'\r')
       {
         char *q = current_query();
         if (q && *q)
           render_lookup(q);
         free(q);
-      }
-      else if (wch == 27 /*Esc*/ || wch == 17 /*Ctrl-Q*/)
-      {
-        running = 0;
       }
       else if (wch == 127 || wch == 8)
       { /* Backspace variants */
@@ -421,7 +550,8 @@ static void loop(void)
       }
     }
 
-    place_cursor();
+    if (active_tab == TAB_DICT)
+      place_cursor();
     doupdate();
   }
 }
