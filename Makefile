@@ -55,7 +55,7 @@ CFLAGS  := $(CSTD) $(WARN) $(OPT) $(FEATURE) $(INCLUDES) $(NC_CFLAGS) $(Z_CFLAGS
 LDLIBS  := $(NC_LIBS) $(Z_LIBS)
 
 # --- sources (src/ tree) ---------------------------------------------------
-SRCS    := src/main.c src/tui/tui.c src/dict/dict.c
+SRCS    := main.c src/tui/tui.c src/dict/dict.c
 OBJS    := $(SRCS:.c=.o)
 HEADERS := src/dict/dict.h src/tui/tui.h
 BIN     := rusdict

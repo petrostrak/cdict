@@ -26,7 +26,9 @@ static DictDB *DB;
 
 static FORM *form;
 static FIELD *fields[2];
-static WINDOW *menu_win, *menu_sub;
+static WINDOW *fwin, *fsub;
+
+static WINDOW *mwin, *msub;
 static MENU *menu;
 static ITEM **items;
 static char **matches;
@@ -156,10 +158,10 @@ static void clear_menu(void)
     free_menu(menu);
     menu = NULL;
   }
-  if (menu_sub)
+  if (msub)
   {
-    delwin(menu_sub);
-    menu_sub = NULL;
+    delwin(msub);
+    msub = NULL;
   }
   if (items)
   {
@@ -178,13 +180,13 @@ static void clear_menu(void)
 
 static void build_menu(void)
 {
-  werase(menu_win);
-  box(menu_win, 0, 0);
+  werase(mwin);
+  box(mwin, 0, 0);
 
   if (n_matches == 0)
   {
-    mvwprintw(menu_win, 0, 2, " matches ");
-    wnoutrefresh(menu_win);
+    mvwprintw(mwin, 0, 2, " matches ");
+    wnoutrefresh(mwin);
     return;
   }
 
@@ -194,15 +196,15 @@ static void build_menu(void)
   items[n_matches] = NULL;
 
   menu = new_menu(items);
-  menu_sub = derwin(menu_win, body_h - 2, MENU_W - 2, 1, 1);
-  set_menu_win(menu, menu_win);
-  set_menu_sub(menu, menu_sub);
+  msub = derwin(mwin, body_h - 2, MENU_W - 2, 1, 1);
+  set_menu_win(menu, mwin);
+  set_menu_sub(menu, msub);
   set_menu_format(menu, body_h - 2, 1);
   set_menu_mark(menu, "> ");
   post_menu(menu);
 
-  mvwprintw(menu_win, 0, 2, " matches: %zu ", n_matches);
-  wnoutrefresh(menu_win);
+  mvwprintw(mwin, 0, 2, " matches: %zu ", n_matches);
+  wnoutrefresh(mwin);
 }
 
 /* Re-run the prefix search for the current query and preview the top hit. */
@@ -237,7 +239,7 @@ static void sync_def_to_menu(void)
 static void place_cursor(void)
 {
   pos_form_cursor(form); /* park the caret back in the search field */
-  wnoutrefresh(form_win);
+  wnoutrefresh(fwin);
 }
 
 /* ---- lifecycle --------------------------------------------------------- */
@@ -270,17 +272,17 @@ static void ui_init(void)
   set_max_field(fields[0], 200);
 
   form = new_form(fields);
-  form_win = newwin(1, fw, 1, fx);
-  form_sub = derwin(form_win, 1, fw, 0, 0);
-  keypad(form_win, TRUE);
-  set_form_win(form, form_win);
-  set_form_sub(form, form_sub);
+  fwin = newwin(1, fw, 1, fx);
+  fsub = derwin(fwin, 1, fw, 0, 0);
+  keypad(fwin, TRUE);
+  set_form_win(form, fwin);
+  set_form_sub(form, fsub);
   post_form(form);
-  wnoutrefresh(form_win);
+  wnoutrefresh(fwin);
 
   /* body: menu on the left, definition pane on the right */
   body_h = LINES - BODY_Y - 1;
-  menu_win = newwin(body_h, MENU_W, BODY_Y, 0);
+  mwin = newwin(body_h, MENU_W, BODY_Y, 0);
 
   int def_w = COLS - MENU_W - 1;
   def_win = newwin(body_h, def_w, BODY_Y, MENU_W + 1);
@@ -301,18 +303,18 @@ static void ui_teardown(void)
     free_form(form);
     form = NULL;
   }
-  if (form_sub)
-    delwin(form_sub);
+  if (fsub)
+    delwin(fsub);
   if (fields[0])
     free_field(fields[0]);
   if (pad)
     delwin(pad);
   if (def_win)
     delwin(def_win);
-  if (menu_win)
-    delwin(menu_win);
-  if (form_win)
-    delwin(form_win);
+  if (mwin)
+    delwin(mwin);
+  if (fwin)
+    delwin(fwin);
   endwin();
 }
 
@@ -329,7 +331,7 @@ static void loop(void)
   wint_t wch;
   while (running)
   {
-    int r = wget_wch(form_win, &wch);
+    int r = wget_wch(fwin, &wch);
     if (r == ERR)
       continue;
 
@@ -341,7 +343,7 @@ static void loop(void)
         if (menu)
         {
           menu_driver(menu, REQ_DOWN_ITEM);
-          wnoutrefresh(menu_win);
+          wnoutrefresh(mwin);
           sync_def_to_menu();
         }
         break;
@@ -349,7 +351,7 @@ static void loop(void)
         if (menu)
         {
           menu_driver(menu, REQ_UP_ITEM);
-          wnoutrefresh(menu_win);
+          wnoutrefresh(mwin);
           sync_def_to_menu();
         }
         break;
