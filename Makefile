@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# cdict — Russian TUI dictionary
+# rusdict — Russian TUI dictionary
 # Links: ncursesw + formw + menuw (wide char, needed for Cyrillic) and zlib.
 # ---------------------------------------------------------------------------
 
@@ -10,6 +10,10 @@ OPT     := -O2 -g
 
 # Wide-char curses must be requested before the headers are included.
 FEATURE := -D_XOPEN_SOURCE_EXTENDED
+
+# Headers now live in per-module dirs, so the compiler needs to be told where
+# to find "dict.h" and "tui.h" when main.c / tui.c include them.
+INCLUDES := -Isrc/dict -Isrc/tui
 
 UNAME_S := $(shell uname -s)
 
@@ -47,27 +51,32 @@ else
   Z_LIBS   := -lz
 endif
 
-CFLAGS  := $(CSTD) $(WARN) $(OPT) $(FEATURE) $(NC_CFLAGS) $(Z_CFLAGS)
+CFLAGS  := $(CSTD) $(WARN) $(OPT) $(FEATURE) $(INCLUDES) $(NC_CFLAGS) $(Z_CFLAGS)
 LDLIBS  := $(NC_LIBS) $(Z_LIBS)
 
-# --- sources ---------------------------------------------------------------
-# dict.c exists now; tui.c and main.c are the next files you'll add.
-SRCS := main.c tui.c dict.c
-OBJS := $(SRCS:.c=.o)
-BIN  := rusdict
+# --- sources (src/ tree) ---------------------------------------------------
+SRCS    := src/main.c src/tui/tui.c src/dict/dict.c
+OBJS    := $(SRCS:.c=.o)
+HEADERS := src/dict/dict.h src/tui/tui.h
+BIN     := rusdict
 
-.PHONY: all clean smoke deps-debian deps-fedora deps-arch deps-macos
+.PHONY: all clean smoke deps-macos
 
 all: $(BIN)
 
 $(BIN): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-%.o: %.c dict.h
+# Objects are built next to their sources (src/main.o, src/tui/tui.o, ...).
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Any header change rebuilds everything — coarse but always correct.
+$(OBJS): $(HEADERS)
 
 clean:
 	$(RM) $(OBJS) $(BIN) smoke_test smoke_test.c
+	$(RM) -r smoke_test.dSYM *.dSYM
 
 # Prove the libraries are installed and actually link, before main() exists.
 # Builds a throwaway program referencing all four libs, runs it, cleans up.
@@ -87,6 +96,7 @@ smoke:
 	$(CC) $(CFLAGS) smoke_test.c -o smoke_test $(LDLIBS)
 	@./smoke_test
 	@$(RM) smoke_test.c smoke_test
+	@$(RM) -r smoke_test.dSYM
 
 # --- dependency installers -------------------------------------------------
 deps-macos:
