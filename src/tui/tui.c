@@ -119,6 +119,70 @@ static void draw_table_frame(void)
   wnoutrefresh(table_win);
 }
 
+/* Total width of the grid: one border/divider column before each of the
+ * TABLE_NCOLS columns plus one after the last. */
+static int table_grid_width(void)
+{
+  int w = TABLE_NCOLS + 1;
+  for (int c = 0; c < TABLE_NCOLS; c++)
+    w += TABLE_COL_W[c];
+  return w;
+}
+
+/* Render TABLE_ROWS into table_pad as a real ncurses box-drawn grid: ACS
+ * line/junction glyphs for borders, cell text in between. Replaces what used
+ * to be a literal "#"/"|" ASCII-art blob. */
+static void build_table_grid(void)
+{
+  size_t nrows = TABLE_NROWS;
+
+  for (size_t r = 0; r < nrows; r++)
+  {
+    const TableRow *row = &TABLE_ROWS[r];
+
+    if (row->is_separator)
+    {
+      chtype left, mid, right;
+      if (r == 0)
+      {
+        left = ACS_ULCORNER;
+        mid = ACS_TTEE;
+        right = ACS_URCORNER;
+      }
+      else if (r == nrows - 1)
+      {
+        left = ACS_LLCORNER;
+        mid = ACS_BTEE;
+        right = ACS_LRCORNER;
+      }
+      else
+      {
+        left = ACS_LTEE;
+        mid = ACS_PLUS;
+        right = ACS_RTEE;
+      }
+
+      waddch(table_pad, left);
+      for (int c = 0; c < TABLE_NCOLS; c++)
+      {
+        for (int i = 0; i < TABLE_COL_W[c]; i++)
+          waddch(table_pad, ACS_HLINE);
+        waddch(table_pad, c == TABLE_NCOLS - 1 ? right : mid);
+      }
+    }
+    else
+    {
+      waddch(table_pad, ACS_VLINE);
+      for (int c = 0; c < TABLE_NCOLS; c++)
+      {
+        waddstr(table_pad, row->col[c]);
+        waddch(table_pad, ACS_VLINE);
+      }
+    }
+    waddch(table_pad, '\n');
+  }
+}
+
 /* Blit the visible slice of the table pad into the table pane. */
 static void draw_table(void)
 {
@@ -388,8 +452,11 @@ static void ui_init(void)
   table_ih = body_h - 2;
   table_iw = COLS - 2;
 
-  table_pad = newpad(PAD_H, TABLE_TEXT_WIDTH);
-  wprintw(table_pad, "%s", TABLE_TEXT);
+  /* +1 beyond the grid's own width: a row that exactly fills the pad's
+   * width leaves ncurses's cursor in a pending-wrap state, so the '\n' that
+   * follows produces a spurious blank row (see build_table_grid()). */
+  table_pad = newpad(PAD_H, table_grid_width() + 1);
+  build_table_grid();
   table_pad_rows = getcury(table_pad) + 1;
   table_pad_off = 0;
 }
