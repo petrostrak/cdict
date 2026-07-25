@@ -4,13 +4,14 @@
 #include "src/dict/dict.h"
 #include "src/tui/tui.h"
 
-int main(int argc, char **argv)
+int main(void)
 {
   /* MUST come before any ncurses call so the wide-character routines
    * interpret the terminal's UTF-8 correctly — this is what makes
    * Cyrillic render instead of turning into mojibake. */
   setlocale(LC_ALL, "");
 
+  /*
   if (argc < 3)
   {
     fprintf(stderr,
@@ -22,8 +23,15 @@ int main(int argc, char **argv)
 
   const char *ex_index = (argc >= 5) ? argv[3] : NULL;
   const char *ex_data = (argc >= 5) ? argv[4] : NULL;
+  */
 
-  DictDB *db = dict_open(argv[1], argv[2], ex_index, ex_data);
+  const char dict_index[] =
+      "/Users/admin/Documents/github.com/petrostrak/cdict/"
+      "rus-eng/rus-eng.index";
+  const char dict_data[] = "/Users/admin/Documents/github.com/petrostrak/cdict/"
+                           "rus-eng/rus-eng.dict.dz";
+
+  DictDB *db = dict_open(dict_index, dict_data, NULL, NULL);
   if (!db)
   {
     fprintf(stderr, "error: could not open dictionary files\n");
