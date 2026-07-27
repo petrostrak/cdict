@@ -102,7 +102,7 @@ static void draw_tabbar(void)
 {
   wmove(stdscr, 0, 0);
   wclrtoeol(stdscr);
-  mvwprintw(stdscr, 0, 0, "rusdict  ");
+  // mvwprintw(stdscr, 0, 0, "rusdict  ");
   wattrset(stdscr, active_tab == TAB_DICT ? A_REVERSE : A_NORMAL);
   waddstr(stdscr, " Словарь ");
   wattrset(stdscr, A_NORMAL);
@@ -338,7 +338,7 @@ static void build_menu(void)
 
   if (n_matches == 0)
   {
-    mvwprintw(mwin, 0, 2, " matches ");
+    mvwprintw(mwin, 0, 2, " результаты ");
     wnoutrefresh(mwin);
     return;
   }
