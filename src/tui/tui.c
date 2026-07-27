@@ -52,7 +52,8 @@ static int body_h;
 static WINDOW *table_win;
 static WINDOW *table_pad;
 static int table_pad_rows, table_pad_off;
-static int table_iy, table_ix, table_ih, table_iw; /* table pane inner viewport */
+static int table_iy, table_ix, table_ih,
+    table_iw; /* table pane inner viewport */
 
 /* ---- helpers ----------------------------------------------------------- */
 
@@ -77,7 +78,7 @@ static char *current_query(void)
 static void draw_def_frame(void)
 {
   box(def_win, 0, 0);
-  mvwprintw(def_win, 0, 2, " definition ");
+  mvwprintw(def_win, 0, 2, " определение ");
   wnoutrefresh(def_win);
 }
 
@@ -103,7 +104,7 @@ static void draw_tabbar(void)
   wclrtoeol(stdscr);
   mvwprintw(stdscr, 0, 0, "rusdict  ");
   wattrset(stdscr, active_tab == TAB_DICT ? A_REVERSE : A_NORMAL);
-  waddstr(stdscr, " Dictionary ");
+  waddstr(stdscr, " Словарь ");
   wattrset(stdscr, A_NORMAL);
   waddstr(stdscr, "  ");
   wattrset(stdscr, active_tab == TAB_TABLE ? A_REVERSE : A_NORMAL);
@@ -355,7 +356,7 @@ static void build_menu(void)
   set_menu_mark(menu, "> ");
   post_menu(menu);
 
-  mvwprintw(mwin, 0, 2, " matches: %zu ", n_matches);
+  mvwprintw(mwin, 0, 2, " результаты: %zu ", n_matches);
   wnoutrefresh(mwin);
 }
 
@@ -375,9 +376,9 @@ static void refresh_matches(void)
   else if (q && *q)
     render_lookup(q); /* no prefix hit; try lemma/miss */
   else
-    show_message("Type a Russian word to search.\n\n"
-                 "\u2191/\u2193 pick a match   Enter look up\n"
-                 "PgUp/PgDn scroll   Esc quit");
+    show_message("Введите русское слово для поиска.\n\n"
+                 "\u2191/\u2193 выбрать матч   посмотреть\n"
+                 "PgUp/PgDn прокрутить   Esc выйти");
   free(q);
 }
 
@@ -406,7 +407,7 @@ static void ui_init(void)
 
   /* chrome on stdscr */
   draw_tabbar();
-  mvaddstr(1, 0, "Search: ");
+  mvaddstr(1, 0, "Поиск: ");
   mvhline(2, 0, ACS_HLINE, COLS);
   mvaddstr(LINES - 1, 0,
            "Tab switch tab   \u2191/\u2193 match/scroll   Enter look up   "
