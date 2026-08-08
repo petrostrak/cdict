@@ -42,20 +42,27 @@ endif
 
 # --- ncurses (wide) via pkg-config, with a hand-rolled fallback ------------
 NC_PKGS := ncursesw formw menuw
+# Nested ifeq/else (not the "else ifeq" shorthand) -- Tiger's bundled GNU
+# Make 3.79 predates 3.81, which is when that chained-conditional syntax
+# was added, and rejects it with "Extraneous text after `else' directive".
 ifeq ($(shell $(PKGCONF) --exists $(NC_PKGS) 2>/dev/null && echo yes),yes)
   NC_CFLAGS := $(shell $(PKGCONF) --cflags $(NC_PKGS))
   NC_LIBS   := $(shell $(PKGCONF) --libs   $(NC_PKGS))
-else ifeq ($(IS_TIGER),yes)
-  NC_CFLAGS := -I$(NCURSES_PREFIX)/include/ncursesw
-  NC_LIBS   := -L$(NCURSES_PREFIX)/lib -lformw -lmenuw -lncursesw
-else ifeq ($(UNAME_S),Darwin)
-  # Last resort: Apple's system ncurses (older, but wide-capable). Prefer
-  # installing Homebrew's ncurses so the pkg-config path above is used.
-  NC_CFLAGS :=
-  NC_LIBS   := -lform -lmenu -lncurses
 else
-  NC_CFLAGS := -I/usr/include/ncursesw
-  NC_LIBS   := -lformw -lmenuw -lncursesw
+  ifeq ($(IS_TIGER),yes)
+    NC_CFLAGS := -I$(NCURSES_PREFIX)/include/ncursesw
+    NC_LIBS   := -L$(NCURSES_PREFIX)/lib -lformw -lmenuw -lncursesw
+  else
+    ifeq ($(UNAME_S),Darwin)
+      # Last resort: Apple's system ncurses (older, but wide-capable). Prefer
+      # installing Homebrew's ncurses so the pkg-config path above is used.
+      NC_CFLAGS :=
+      NC_LIBS   := -lform -lmenu -lncurses
+    else
+      NC_CFLAGS := -I/usr/include/ncursesw
+      NC_LIBS   := -lformw -lmenuw -lncursesw
+    endif
+  endif
 endif
 
 # --- zlib (for the dictzip .dict.dz bodies) --------------------------------
